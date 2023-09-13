@@ -136,34 +136,102 @@ class MLX90640:  # pylint: disable=too-many-instance-attributes
             tr = self._GetTa(mlx90640Frame) - OPENAIR_TA_SHIFT
             self._CalculateTo(mlx90640Frame, emissivity, tr, framebuf)
 
-    def _GetFrameData(self, frameData: List[int]) -> int:
+    # def _GetFrameData(self, frameData: List[int]) -> int:
+    #     dataReady = 0
+    #     cnt = 0
+    #     statusRegister = [0]
+    #     controlRegister = [0]
+
+    #     while dataReady == 0:
+    #         self._I2CReadWords(0x8000, statusRegister)
+    #         dataReady = statusRegister[0] & 0x0008
+    #         # print("ready status: 0x%x" % dataReady)
+
+    #     while (dataReady != 0) and (cnt < 5):
+    #         self._I2CWriteWord(0x8000, 0x0030)
+    #         # print("Read frame", cnt)
+    #         self._I2CReadWords(0x0400, frameData, end=832)
+
+    #         self._I2CReadWords(0x8000, statusRegister)
+    #         dataReady = statusRegister[0] & 0x0008
+    #         # print("frame ready: 0x%x" % dataReady)
+    #         cnt += 1
+
+    #     if cnt > 4:
+    #         raise RuntimeError("Too many retries")
+
+    #     self._I2CReadWords(0x800D, controlRegister)
+    #     frameData[832] = controlRegister[0]
+    #     frameData[833] = statusRegister[0] & 0x0001
+    #     return frameData[833]
+    '''
+    This modified is for the refresh rate of mlx90640
+    to enable the frequecy above 8 Hz
+    -------------------------------------------------
+    Modified Area from here
+    '''
+    def _GetFrameData(self, frameData):
         dataReady = 0
         cnt = 0
         statusRegister = [0]
         controlRegister = [0]
-
+        data =[0]*64
         while dataReady == 0:
             self._I2CReadWords(0x8000, statusRegister)
             dataReady = statusRegister[0] & 0x0008
             # print("ready status: 0x%x" % dataReady)
-
-        while (dataReady != 0) and (cnt < 5):
-            self._I2CWriteWord(0x8000, 0x0030)
-            # print("Read frame", cnt)
-            self._I2CReadWords(0x0400, frameData, end=832)
-
-            self._I2CReadWords(0x8000, statusRegister)
-            dataReady = statusRegister[0] & 0x0008
-            # print("frame ready: 0x%x" % dataReady)
-            cnt += 1
-
-        if cnt > 4:
-            raise RuntimeError("Too many retries")
-
+        self._I2CWriteWord(0x8000, 0x0030)
+        self._I2CReadWords(0x0400, frameData, end=768)
+        self._I2CReadWords(0x0700, data, end=64)
         self._I2CReadWords(0x800D, controlRegister)
         frameData[832] = controlRegister[0]
         frameData[833] = statusRegister[0] & 0x0001
+        
+        returned_data = self._ValidateAuxData(data)
+       
+        if returned_data == 0:
+            for cnt in range(0,64):
+                frameData[cnt+768]= data[cnt]
+                
+        returned_data = self._ValidateFrameData(frameData)
+        if returned_data != 0:
+            raise RuntimeError("_ValidateFrameData_error",-2)
         return frameData[833]
+    
+    def _ValidateAuxData(self, auxData):
+        if auxData[0] == 0x7FFF:
+            return -8
+        for i in range(8,19):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        for i in range(20,23):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        for i in range(24,33):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        for i in range(40,51):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        for i in range(52,55):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        for i in range(56,64):
+            if(auxData[i] == 0x7FFF):
+                return -8
+        return 0
+
+    def _ValidateFrameData(self, frameData):
+        line = 0
+        for i in range(0,768,32):
+            if (frameData[i] == 0x7FFF) and (line%2 == frameData[833]):
+                return -8
+            line = line + 1
+        return 0
+    '''
+    Modified area until here
+    ------------------------------------------------
+    '''
 
     def _GetTa(self, frameData: List[int]) -> float:
         vdd = self._GetVdd(frameData)
