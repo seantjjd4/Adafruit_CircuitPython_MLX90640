@@ -165,10 +165,12 @@ class MLX90640:  # pylint: disable=too-many-instance-attributes
     #     frameData[833] = statusRegister[0] & 0x0001
     #     return frameData[833]
     '''
+    =================================================
     This modified is for the refresh rate of mlx90640
     to enable the frequecy above 8 Hz
-    -------------------------------------------------
+    =================================================
     Modified Area from here
+    -------------------------------------------------
     '''
     def _GetFrameData(self, frameData):
         dataReady = 0
